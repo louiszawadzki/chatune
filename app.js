@@ -19,8 +19,10 @@ app.use('/peerjs', ExpressPeerServer(server, options));
 
 server.listen(9002);
 
+var clientsId = [];
+
 server.on('connection', function(id){
-	console.log(server);
+	//TODO
 });
 
 server.on('disconnect', function(id){

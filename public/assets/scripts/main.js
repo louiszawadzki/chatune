@@ -1,5 +1,5 @@
-window.AudioContext = window.AudioContext || window.webkitAudioContext;
-navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia;
+window.AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
+navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
 // setting variables  for pitch shifting
 var MIN_SAMPLES = 0;
 var buf = new Float32Array(1024); 
@@ -8,6 +8,21 @@ var grainSize = 1024,
     pitchRatio = 1,
     overlapRatio = 0.50;
 
+var callPeer = function(call){
+	// Hang up exisiting call
+	if (window.exisitingCall){
+		window.existingCall.close();
+	}
+	
+	//
+	call.on('stream', function(stream){
+		var theirVideo = document.getElementById('theirs');
+		theirVideo.src = URL.createObjectURL(stream);
+		console.log('call successful !')
+	});
+	
+	window.existingCall = call;
+}
 
 navigator.getUserMedia({audio: true}, function(stream) {
 
@@ -44,11 +59,10 @@ navigator.getUserMedia({audio: true}, function(stream) {
     highPassFilter.type = "highpass";
     highPassFilter.frequency.value = 400;
     
-    //P2P part
-    var peer = new Peer({host: 'localhost', port: 9002, path :'/peerjs'});
-    peer.on('open', function(id) {
-    	console.log('My id is ' + id);
-    });
+    
+    // Stream node
+    var streamNode = context.createMediaStreamDestination();
+
 
     //connecting channels
     audio.connect(analyser);
@@ -57,8 +71,27 @@ navigator.getUserMedia({audio: true}, function(stream) {
     pitchShifterProcessor.connect(lowPassFilter);
     lowPassFilter.connect(highPassFilter);
     highPassFilter.connect(context.destination);
-
+    highPassFilter.connect(streamNode);
+	
     var scale = createScale (110,5);
+
+    //P2P part
+    var peer = new Peer({host: '192.168.0.14', port: 9002, path :'/peerjs'});
+    peer.on('open', function(id) {
+    	console.log('My id is ' + id);
+    });
+    peer.on('call', function(call){
+    	call.answer(streamNode.stream);
+    	callPeer(call);
+    })
+
+	// function for the button that triggers the call
+	document.getElementById('call').onclick = function(){
+		var callid = document.getElementById('callto').value;
+		var call = peer.call(callid, streamNode.stream);
+		
+		callPeer(call);
+	};
 
 
     //initiate process for pitch update every 20 ms
@@ -82,8 +115,5 @@ navigator.getUserMedia({audio: true}, function(stream) {
 }, function(err) {
     console.log("The following error occured: " + err);
 });
-
-
-
 
 
